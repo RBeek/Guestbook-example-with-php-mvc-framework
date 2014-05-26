@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Gastenboek</title>
+    <!-- Latest compiled and minified CSS & JS  -->
+  <link rel='stylesheet', media='screen', href='//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css'>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src='//code.jquery.com/jquery.js'></script>
+  <script src='//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js'></script>
+
+<script>
+
+/* Float Label Pattern Plugin for Bootstrap 3.1.0 by Travis Wilson
+**************************************************/
+
+(function ($) {
+    $.fn.floatLabels = function (options) {
+
+        // Settings
+        var self = this;
+        var settings = $.extend({}, options);
+
+
+        // Event Handlers
+        function registerEventHandlers() {
+            self.on('input keyup change', 'input, textarea', function () {
+                actions.swapLabels(this);
+            });
+        }
+
+
+        // Actions
+        var actions = {
+            initialize: function() {
+                self.each(function () {
+                    var $this = $(this);
+                    var $label = $this.children('label');
+                    var $field = $this.find('input,textarea').first();
+
+                    if ($this.children().first().is('label')) {
+                        $this.children().first().remove();
+                        $this.append($label);
+                    }
+
+                    var placeholderText = ($field.attr('placeholder') && $field.attr('placeholder') != $label.text()) ? $field.attr('placeholder') : $label.text();
+
+                    $label.data('placeholder-text', placeholderText);
+                    $label.data('original-text', $label.text());
+
+                    if ($field.val() == '') {
+                        $field.addClass('empty')
+                    }
+                });
+            },
+            swapLabels: function (field) {
+                var $field = $(field);
+                var $label = $(field).siblings('label').first();
+                var isEmpty = Boolean($field.val());
+
+                if (isEmpty) {
+                    $field.removeClass('empty');
+                    $label.text($label.data('original-text'));
+                }
+                else {
+                    $field.addClass('empty');
+                    $label.text($label.data('placeholder-text'));
+                }
+            }
+        }
+
+
+        // Initialization
+        function init() {
+            registerEventHandlers();
+
+            actions.initialize();
+            self.each(function () {
+                actions.swapLabels($(this).find('input,textarea').first());
+            });
+        }
+        init();
+
+
+        return this;
+    };
+
+    $(function () {
+        $('.float-label-control').floatLabels();
+    });
+})(jQuery);
+</script>
+
+</head>
+<body>
+<div class="container">
+  
+		<?php echo $content; ?>
+	
+<div id="footer">
+    
+</div>
+</div>
+</body>
+</html>
