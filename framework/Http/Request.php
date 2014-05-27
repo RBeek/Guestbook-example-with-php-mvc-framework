@@ -38,7 +38,7 @@ class Request
         $this->init($query, $request, $attributes, $cookies, $files, $server, $content);
     }
 
-    public function init($query, $request, $attributes, $cookies, $files, $server, $content = null)
+    public function init(array $query = array(),array $request = array(),array $attributes = array(),array $cookies = array(),array $files = array(),array $server = array(), $content = null)
     {
 
         $this->request = new ParameterBag($request);
@@ -314,6 +314,22 @@ class Request
         }
 
         return $this->content;
+    }
+
+    public function getQueryString()
+    {
+        $qs = $this->server->get('QUERY_STRING');
+
+        return '' === $qs ? null : $qs;
+    }
+
+    public function getUri()
+    {
+        if (null !== $qs = $this->getQueryString()) {
+            $qs = '?'.$qs;
+        }
+
+        return $this->getSchemeAndHttpHost().$this->getBaseUrl().$this->getPathInfo().$qs;
     }
 
     public function getPathInfo()

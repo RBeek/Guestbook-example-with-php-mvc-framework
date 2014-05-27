@@ -1,7 +1,6 @@
 <?php namespace Framework\Session;
 
 use Framework\Support\Helpers as h;
-// use Framework\Session\SessionInterface;
 
 /**
  * Class and Function List:
@@ -62,11 +61,13 @@ class Session implements SessionInterface
     private $gc_probability = 5;
     private $userdata = array();
     private $now;
+    private $storage_default = "native";
     protected $started = false;
     protected $closed = false;
+    protected $storage = false;
     private $dba = null;
 
-    public function isStarted(){}
+    public function isStarted(){return $this->storage!=="native"?$this->storage->isStarted():$this->started;}
     public function clear(){}
     public function replace(array $attributes){}
     public function migrate($destroy = false, $lifetime = null){}
@@ -74,9 +75,18 @@ class Session implements SessionInterface
     public function setName($name){}
     public function getName(){}
     public function setId($id){}
-    public function getId(){}
+    public function getId(){
+        if($this->storage == $this->storage_default){
+            if (!$this->started) {
+                return '';
+            }
+            return session_id();
+        }else{
+          return  $this->storage->getId();
+        }
+    }
 
-    public function __construct($config = array())
+    public function __construct($storage = null, $config = array())
     {
         session_cache_limiter('');
 
@@ -88,6 +98,8 @@ class Session implements SessionInterface
         } else {
             register_shutdown_function('session_write_close');
         }
+
+        $this->storage = $storage?: $this->storage_default;
 
         foreach ($config as $key => $val) {
             if (isset($this->$key)) $this->$key = $val;
@@ -113,40 +125,45 @@ class Session implements SessionInterface
             return true;
         }
 
-        if (version_compare(phpversion(), '5.4.0', '>=') && \PHP_SESSION_ACTIVE === session_status()) {
-            throw new \RuntimeException('Failed to start the session: already started by PHP.');
+        if($this->storage == "native"){
+            if (version_compare(phpversion(), '5.4.0', '>=') && \PHP_SESSION_ACTIVE === session_status()) {
+                throw new \RuntimeException('Failed to start the session: already started by PHP.');
+            }
+
+            if (version_compare(phpversion(), '5.4.0', '<') && isset($_SESSION) && session_id()) {
+
+                // not 100% fool-proof, but is the most reliable way to determine if a session is active in PHP 5.3
+                throw new \RuntimeException('Failed to start the session: already started by PHP ($_SESSION is set).');
+            }
+
+            if (ini_get('session.use_cookies') && headers_sent($file, $line)) {
+                throw new \RuntimeException(sprintf('Failed to start the session because headers have already been sent by "%s" at line %d.', $file, $line));
+            }
+
+            // ok to try and start the session
+            if (!session_start()) {
+                throw new \RuntimeException('Failed to start the session');
+            }
+
+            // Execute session routine..
+            if (!$this->read()) {
+                $this->create();
+            } else {
+                $this->update();
+            }
+
+            // Remove 'old' flashdata (last request)
+            $this->flashSweep();
+
+            // Mark new flashdata as old ( data will be removed 'before' the next request)
+            $this->flashMark();
+
+            // Remove expired sessions
+            $this->_sessGc();
+
+        }else{
+            $this->storage->start();
         }
-
-        if (version_compare(phpversion(), '5.4.0', '<') && isset($_SESSION) && session_id()) {
-
-            // not 100% fool-proof, but is the most reliable way to determine if a session is active in PHP 5.3
-            throw new \RuntimeException('Failed to start the session: already started by PHP ($_SESSION is set).');
-        }
-
-        if (ini_get('session.use_cookies') && headers_sent($file, $line)) {
-            throw new \RuntimeException(sprintf('Failed to start the session because headers have already been sent by "%s" at line %d.', $file, $line));
-        }
-
-        // ok to try and start the session
-        if (!session_start()) {
-            throw new \RuntimeException('Failed to start the session');
-        }
-
-        // Execute session routine..
-        if (!$this->read()) {
-            $this->create();
-        } else {
-            $this->update();
-        }
-
-        // Remove 'old' flashdata (last request)
-        $this->flashSweep();
-
-        // Mark new flashdata as old ( data will be removed 'before' the next request)
-        $this->flashMark();
-
-        // Remove expired sessions
-        $this->_sessGc();
 
         $this->started = true;
         $this->closed = false;
@@ -395,33 +412,38 @@ class Session implements SessionInterface
 
     public function get($name, $default = null)
     {
-        $value = !isset($this->userdata[$name]) ? FALSE : $this->userdata[$name];
-        return $value?:($default?$this->userdata[$default]:false);
+        if($this->storage !== $this->storage_default) return $this->storage->get($name, $default);
+        return $value = isset($this->userdata[$name]) ? $this->userdata[$name]:$default;
     }
 
     public function all()
     {
+        if($this->storage !== $this->storage_default) return $this->storage->all();
         return (!isset($this->userdata)) ? FALSE : $this->userdata;
     }
 
     public function has($name)
     {
+        if($this->storage !== $this->storage_default) return $this->storage->has($name);
         return isset($this->userdata[$name]);
     }
 
     public function set($data = array(), $value = '')
     {
+
         if (is_string($data)) {
             $data = array($data => $value);
         }
 
-        if (count($data) > 0) {
-            foreach ($data as $k => $v) {
-                $this->userdata[$k] = $v;
-            }
-        }
+        if($this->storage !== $this->storage_default){
 
-        $this->write();
+            $this->storage->set($data, $value);
+        }else{
+
+            if (count($data) > 0) $this->userdata = $data;
+
+            $this->write();
+        }
     }
 
     public function remove($data = array())
@@ -480,7 +502,7 @@ class Session implements SessionInterface
      */
     private function flashMark()
     {
-        $userdata = $this->alle_userdata();
+        $userdata = $this->all();
         foreach ($userdata as $name => $value) {
             $parts = explode(':new:', $name);
             if (is_array($parts) && count($parts) === 2) {
@@ -500,7 +522,7 @@ class Session implements SessionInterface
 
     private function flashSweep()
     {
-        $userdata = $this->alle_userdata();
+        $userdata = $this->all();
         foreach ($userdata as $key => $value) {
             if (strpos($key, ':old:')) {
                 $this->unset_userdata($key);

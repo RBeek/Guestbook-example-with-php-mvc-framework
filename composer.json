@@ -1,0 +1,15 @@
+{
+  "autoload": {
+    "psr-4": {
+
+      "Framework\\":["framework/", "app/tests/Framework/"]
+    },
+    "classmap":[
+         "app/controllers/",
+         "app/models/"
+      ]
+  },
+  "require-dev": {
+
+  }
+}

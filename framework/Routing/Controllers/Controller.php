@@ -14,7 +14,7 @@ protected $layout;
 // /**
 //  * Call the before filters on the controller.
 //  *
-//  * @param  \Illuminate\Routing\Router  $router
+//  * @param  \Framework\Routing\Router  $router
 //  * @param  string  $method
 //  * @return mixed
 //  */
@@ -43,9 +43,9 @@ protected $layout;
 //     /**
 //      * Call the given route filter.
 //      *
-//      * @param  \Illuminate\Routing\Route  $route
+//      * @param  \Framework\Routing\Route  $route
 //      * @param  string  $filter
-//      * @param  \Symfony\Component\HttpFoundation\Request  $request
+//      * @param  \Framework\Http\Request  $request
 //      * @param  array  $parameters
 //      * @return mixed
 //      */
@@ -81,7 +81,7 @@ public function callAction( Router $router, $method, $parameters)
     if ($params = $this->getArguments($method)) {
         if (count($params === 1)) {
            if( "Framework\Http\Request" == $class =  @$params[0]->getClass()->name){
-            // echo "boe";exit();
+           
             $parameters = array(0 => $router->getRequest());
             }
         }
