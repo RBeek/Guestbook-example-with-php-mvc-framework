@@ -9,6 +9,7 @@ use Framework\Routing\Exception\ResourceNotFoundException;
 use Framework\Routing\Exception\MethodNotAllowedException;
 use Framework\HttpCore\Exception\NotFoundHttpException;
 use Framework\HttpCore\Exception\MethodNotAllowedHttpException;
+use Framework\Support\AliasLoader;
 
 /**
  * Class and Function List:
@@ -25,7 +26,10 @@ use Framework\HttpCore\Exception\MethodNotAllowedHttpException;
  * - filter()
  * - getFilter()
  * - make()
+ * - getAlias()
  * - build()
+ * - getDependencies()
+ * - resolveNonClass()
  * - getClassBasedFilter()
  * - createRoute()
  * - prepare()
@@ -47,8 +51,13 @@ use Framework\HttpCore\Exception\MethodNotAllowedHttpException;
  * - compilePattern()
  * - findNextSeparator()
  * Classes list:
+ * - BindingResolutionException extends \
  * - Router
  */
+
+class BindingResolutionException extends \Exception
+{
+}
 class Router
 {
     const REQUIREMENT_MATCH = 0;
@@ -63,9 +72,9 @@ class Router
     protected $allow = array();
     protected $filters = array();
 
-    function __construct()
+    public function __construct()
     {
-        $this->routes = new RouteCollection;
+        $this->routes = new routecollection;
     }
 
     public function getRoutes()
@@ -158,19 +167,33 @@ class Router
 
         /**
          TODO:
-         - $abstract = $this->getAlias($abstract); with aliasLoader added to SPL stack
+         - Testing
          - Second todo item
          *
          */
 
-        // $abstract = $this->getAlias($abstract);
-        // no bindings to verify in this implementation
+        $abstract = $this->getAlias($abstract);
+
+        // no DI or other bindings under a different name to verify in this implementation
+        // $concrete and $abstract will remain the same
         $concrete = $abstract;
         if (class_exists($abstract, true) or $concrete instanceof Closure) {
             $object = $this->build($concrete, $parameters);
         }
 
         return $object;
+    }
+
+    /**
+     * Get the alias for an abstract if available.
+     *
+     * @param  string  $abstract
+     * @return string
+     */
+    protected function getAlias($abstract)
+    {
+        $aliases = AliasLoader::getInstance()->getAliases();
+        return isset($aliases[$abstract]) ? $aliases[$abstract] : $abstract;
     }
 
     /**
@@ -198,7 +221,7 @@ class Router
         if (!$reflector->isInstantiable()) {
             $message = "Target [$concrete] is not instantiable.";
 
-            throw new \Exception($message);
+            throw new BindingResolutionException($message);
         }
 
         $constructor = $reflector->getConstructor();
@@ -208,7 +231,6 @@ class Router
         if (is_null($constructor)) {
             return new $concrete;
         }
-        return new $concrete;
 
         $parameters = $constructor->getParameters();
 
@@ -220,15 +242,57 @@ class Router
 
         /**
          TODO:
-         - Dependancies
+         - Dependancies testing
          - Second todo item
          *
          */
 
-        // $dependencies = $this->getDependencies($parameters);
+        $dependencies = $this->getDependencies($parameters);
 
-        // return $reflector->newInstanceArgs($dependencies);
+        return $reflector->newInstanceArgs($dependencies);
+    }
 
+    /**
+     * Resolve all of the dependencies from the ReflectionParameters.
+     *
+     * @param  array  $parameters
+     * @return array
+     */
+    protected function getDependencies($parameters)
+    {
+        $dependencies = array();
+
+        foreach ($parameters as $parameter) {
+            $dependency = $parameter->getClass();
+
+            // If the class is null, it means the dependency is a string or some other
+            // primitive type which we can not resolve since it is not a class and
+            // we'll just bomb out with an error since we have no-where to go.
+            if (is_null($dependency)) {
+                $dependencies[] = $this->resolveNonClass($parameter);
+            } else {
+                $dependencies[] = $this->make($dependency->name);
+            }
+        }
+
+        return (array)$dependencies;
+    }
+
+    /**
+     * Resolve a non-class hinted dependency.
+     *
+     * @param  ReflectionParameter  $parameter
+     * @return mixed
+     */
+    protected function resolveNonClass(ReflectionParameter $parameter)
+    {
+        if ($parameter->isDefaultValueAvailable()) {
+            return $parameter->getDefaultValue();
+        } else {
+            $message = "Unresolvable dependency resolving [$parameter].";
+
+            throw new BindingResolutionException($message);
+        }
     }
 
     /**
@@ -379,7 +443,7 @@ class Router
             return array('uses' => $action);
         }
 
-        throw new \Exception("Unroutable action.");
+        throw new \InvalidArgumentException("Unroutable action.");
     }
 
     protected function getName($method, $pattern, array $action)

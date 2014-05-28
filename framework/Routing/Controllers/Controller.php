@@ -112,10 +112,10 @@ protected function callMethod($method, $parameters)
 /**
 * Process a controller action response.
 *
-* @param  \Illuminate\Routing\Router  $router
+* @param  \Framework\Routing\Router  $router
 * @param  string  $method
 * @param  mixed   $response
-* @return \Symfony\Component\HttpFoundation\Response
+* @return \Framework\Http\Response
 */
 protected function processResponse($router, $method, $response)
 {

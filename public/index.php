@@ -99,11 +99,11 @@ try {
     $response->send();
 }
 catch(Exception $e) {
-    var_dump($e->getMessage());
+    if( $e instanceof \Framework\HttpCore\Exception\HttpExceptionInterface){
+        echo decorate(getContent($exception));
+    }else{
 
-    // echo decorate(getContent($exception));
-    // echo $e->getMessage();
-    //echo "final catchable exception";
-
+        // echo $e->getMessage();
+    }
 
 }
